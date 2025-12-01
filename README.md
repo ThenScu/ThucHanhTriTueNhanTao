@@ -1,7 +1,4 @@
-Hãy đóng vai một Technical Writer chuyên nghiệp. Tôi cần bạn viết nội dung cho file README.md giới thiệu về "Thuật toán Tô màu đồ thị với phương pháp Hạ bậc".
-
-Dưới đây là logic thuật toán và ví dụ cụ thể của tôi:
-
+Giải thuật tô màu đồ thị
 1. Dữ liệu đầu vào: Một đồ thị với các đỉnh và bậc tương ứng.
 <img width="500" height="450" alt="image" src="https://github.com/user-attachments/assets/88396c63-925e-416d-9165-3091072be305" />
 
