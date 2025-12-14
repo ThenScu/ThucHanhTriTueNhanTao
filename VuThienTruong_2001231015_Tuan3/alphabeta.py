@@ -46,6 +46,55 @@ def PrintBoard(board):
     {board[6]} | {board[7]} | {board[8]}
     ''')
 
+
+def create_board(n):
+    """Tạo bàn cờ n x n dưới dạng danh sách phẳng [1..n*n]."""
+    return [i for i in range(1, n * n + 1)]
+
+
+def print_board_n(board, n):
+    """In bàn cờ kích thước n x n. Board là danh sách phẳng độ dài n*n."""
+    total = n * n
+    # chiều rộng ô để căn đều (dựa trên số lớn nhất)
+    cell_width = len(str(total))
+    sep = ' | '
+    for r in range(n):
+        row_cells = []
+        for c in range(n):
+            val = board[r * n + c]
+            row_cells.append(str(val).rjust(cell_width))
+        print(sep.join(row_cells))
+        if r != n - 1:
+            print('-' * (n * (cell_width) + (len(sep) * (n - 1))))
+
+
+def check_winner_n(board, n, win_len):
+    """Kiểm tra người thắng trên board n x n; trả về 'X' hoặc 'O' nếu có, ngược lại None.
+
+    Thuật toán: duyệt mọi ô, nếu ô có 'X' hoặc 'O' thì kiểm tra 4 hướng
+    (right, down, down-right, down-left) xem có win_len quân liên tiếp không.
+    """
+    # chuyển về ma trận dễ truy cập
+    def at(r, c):
+        return board[r * n + c]
+
+    directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
+    for r in range(n):
+        for c in range(n):
+            player = at(r, c)
+            if player != 'X' and player != 'O':
+                continue
+            for dr, dc in directions:
+                cnt = 1
+                rr, cc = r + dr, c + dc
+                while 0 <= rr < n and 0 <= cc < n and at(rr, cc) == player:
+                    cnt += 1
+                    if cnt >= win_len:
+                        return player
+                    rr += dr
+                    cc += dc
+    return None
+
 def GetAvailableCells(board):
     """
     Trả về danh sách các chỉ số (số thứ tự ô) còn trống.
@@ -152,56 +201,58 @@ def FindBestMove(currentPosition, AI):
     return bestMove
 
 def main():
-    # Chọn phe
-    player = input("Bạn muốn chơi X hay O? ").strip().upper()
-    AI = "O" if player == "X" else "X"
-    
-    # Khởi tạo bàn cờ với các số từ 1 đến 9
-    currentGame = [*range(1, 10)]
-    
-    # Mặc định X luôn đi trước
-    currentTurn = "X"
-    counter = 0 # Đếm số lượt đi để kiểm tra hòa nhanh (tùy chọn)
+    # Hỗ trợ bàn cờ n x n: hỏi người dùng nhập n, số quân thắng mặc định = n
+    try:
+        n = int(input("Nhập kích thước bàn n (ví dụ 3 hoặc 5): ").strip())
+        if n < 1:
+            print("n phải là số nguyên dương. Sử dụng n = 3.")
+            n = 3
+    except Exception:
+        print("Giá trị không hợp lệ. Sử dụng n = 3.")
+        n = 3
+
+    win_len = n
+    board = create_board(n)
+    currentTurn = 'X'
 
     while True:
-        # --- LƯỢT CỦA AI ---
-        if currentTurn == AI:
-            print(f"AI ({AI}) đang suy nghĩ...")
-            # Mẹo tối ưu: Nếu AI đi trước (bàn cờ trống), luôn đánh ô 5 (giữa) hoặc 1 (góc) để thắng nhanh/không thua
-            # Code dưới đây để AI tự tính toán hết bằng Minimax
-            cell = FindBestMove(currentGame, AI)
-            currentGame[cell - 1] = AI
-            currentTurn = player # Đổi lượt sang người chơi
+        print()
+        print_board_n(board, n)
+        # Nhập nước đi
+        try:
+            move = int(input(f"Lượt {currentTurn}. Nhập số ô (1-{n*n}): ").strip())
+        except ValueError:
+            print("Vui lòng nhập một số hợp lệ.")
+            continue
 
-        # --- LƯỢT CỦA NGƯỜI CHƠI ---
-        elif currentTurn == player:
-            PrintBoard(currentGame)
-            while True:
-                try:
-                    humanInput = int(input(f"Lượt bạn ({player}). Nhập số ô (1-9): ").strip())
-                    # Kiểm tra xem ô đó có nằm trong danh sách ô còn trống không
-                    if humanInput in currentGame:
-                        currentGame[humanInput - 1] = player
-                        currentTurn = AI # Đổi lượt sang AI
-                        break
-                    else:
-                        print("Ô này đã bị đánh hoặc không hợp lệ. Chọn ô khác!")
-                except ValueError:
-                    print("Vui lòng nhập một con số!")
-        
-        # --- KIỂM TRA KẾT THÚC GAME ---
-        winner_res = GetWinner(currentGame)
-        if winner_res != None:
-            PrintBoard(currentGame)
-            print(f"KẾT QUẢ: {winner_res} ĐÃ THẮNG!!!")
+        if move < 1 or move > n * n:
+            print("Ô không hợp lệ. Thử lại.")
+            continue
+
+        # Kiểm tra ô còn trống
+        if board[move - 1] == 'X' or board[move - 1] == 'O':
+            print("Ô này đã có người đánh. Chọn ô khác.")
+            continue
+
+        board[move - 1] = currentTurn
+
+        # Kiểm tra thắng
+        winner = check_winner_n(board, n, win_len)
+        if winner is not None:
+            print()
+            print_board_n(board, n)
+            print(f"KẾT QUẢ: {winner} ĐÃ THẮNG!!!")
             break
-        
-        counter += 1
-        # Kiểm tra hòa (nếu không còn ai thắng và bàn cờ đầy hoặc hết lượt)
-        if GetWinner(currentGame) == None and len(GetAvailableCells(currentGame)) == 0:
-            PrintBoard(currentGame)
+
+        # Kiểm tra hòa
+        if len(GetAvailableCells(board)) == 0:
+            print()
+            print_board_n(board, n)
             print("KẾT QUẢ: HÒA (Tie).")
             break
+
+        # Đổi lượt
+        currentTurn = 'O' if currentTurn == 'X' else 'X'
 
 if __name__ == "__main__":
     main()
