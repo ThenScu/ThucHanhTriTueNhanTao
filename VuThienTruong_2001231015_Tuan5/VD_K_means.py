@@ -1,118 +1,215 @@
-# Bước 1: Import các thư viện cần thiết
-import numpy as np # thư viện tính toán toán học
-import matplotlib.pyplot as plt # visualize data sử dụng đồ thị
-from scipy.spatial.distance import cdist # Hỗ trợ tính khoảng cách
+import numpy as np  # Thư viện toán học, xử lý ma trận
+import matplotlib.pyplot as plt  # Thư viện vẽ biểu đồ
+from scipy.spatial.distance import cdist  # Hàm tính khoảng cách giữa các điểm (rất nhanh)
+import cv2  # OpenCV: Dùng để hiển thị ảnh và xử lý phím bấm
+import sys  # Dùng để tắt chương trình an toàn
 
-# Bước 2: Khởi tạo 500 điểm dữ liệu xung quanh 3 tâm cụm
-means = [[2, 2], [9, 2], [4, 9]]
-cov = [[2, 0], [0, 2]]
-n_samples = 500
-n_cluster = 3
+# ==========================================
+# PHẦN 1: HÀM HỖ TRỢ XỬ LÝ ẢNH (KỸ THUẬT)
+# ==========================================
+def fig_to_cv2_image(fig):
+    """
+    Hàm này biến đổi biểu đồ Matplotlib (vector) thành ảnh bitmap (pixel)
+    để OpenCV có thể hiển thị được.
+    """
+    # 1. Vẽ biểu đồ lên bộ nhớ đệm (RAM)
+    fig.canvas.draw()
+    
+    # 2. Lấy kích thước ảnh (rộng, cao)
+    w, h = fig.canvas.get_width_height()
+    
+    # 3. Lấy dữ liệu pixel từ buffer (dạng RGBA - Red Green Blue Alpha)
+    buffer = fig.canvas.buffer_rgba()
+    
+    # 4. Chuyển buffer thành mảng số học (numpy array)
+    data = np.frombuffer(buffer, dtype=np.uint8)
+    data = data.reshape((int(h), int(w), 4)) # Định hình lại thành ma trận ảnh
+    
+    # 5. Chuyển hệ màu từ RGB (của Matplotlib) sang BGR (của OpenCV)
+    # Nếu không có dòng này, màu đỏ sẽ biến thành màu xanh dương
+    img_bgr = cv2.cvtColor(data, cv2.COLOR_RGBA2BGR)
+    
+    return img_bgr
 
-X0 = np.random.multivariate_normal(means[0], cov, n_samples)
-X1 = np.random.multivariate_normal(means[1], cov, n_samples)
-X2 = np.random.multivariate_normal(means[2], cov, n_samples)
-X = np.concatenate((X0, X1, X2), axis = 0)
-
-# Bước 3: Xem phân bố của dữ liệu vừa tạo
-plt.figure(figsize=(8, 6))
-plt.xlabel('x')
-plt.ylabel('y')
-plt.plot(X[:, 0], X[:, 1], 'bo', markersize=5, alpha=0.5)
-plt.title('Dữ liệu ban đầu')
-plt.show()
-
-# --- CÁC HÀM HỖ TRỢ K-MEANS ---
-
-# Bước 4: Hàm khởi tạo tâm cụm ban đầu
+# ==========================================
+# PHẦN 2: CÁC HÀM TÍNH TOÁN K-MEANS (TOÁN HỌC)
+# ==========================================
 def kmeans_init_centers(X, n_cluster):
-    # random k index between 0 and shape(X) without duplicate index.
-    # Then return X[index] as cluster
+    """
+    Bước khởi tạo: Chọn ngẫu nhiên n_cluster điểm từ dữ liệu X làm tâm ban đầu.
+    replace=False: Đảm bảo không chọn trùng.
+    """
     return X[np.random.choice(X.shape[0], n_cluster, replace=False)]
 
-# Bước 5: Hàm xác định nhãn (label) cho từng điểm dữ liệu dựa trên tâm cụm
 def kmeans_predict_labels(X, centers):
-    D = cdist(X, centers)
-    # return index of the closest center
-    return np.argmin(D, axis = 1)
+    """
+    Bước E-Step (Expectation): Gán nhãn cho điểm dữ liệu.
+    Mỗi điểm sẽ được gán vào tâm cụm nào gần nó nhất.
+    """
+    # Tính khoảng cách từ mọi điểm đến mọi tâm
+    D = cdist(X, centers) 
+    # Trả về chỉ số (index) của tâm có khoảng cách nhỏ nhất
+    return np.argmin(D, axis=1)
 
-# Bước 6: Hàm cập nhật lại vị trí các tâm cụm
 def kmeans_update_centers(X, labels, n_cluster):
+    """
+    Bước M-Step (Maximization): Cập nhật vị trí tâm.
+    Tâm mới = Trung bình cộng toạ độ của tất cả các điểm thuộc cụm đó.
+    """
     centers = np.zeros((n_cluster, X.shape[1]))
     for k in range(n_cluster):
-        # collect all points assigned to the k-th cluster
+        # Lấy tất cả các điểm thuộc cụm k
         Xk = X[labels == k, :]
-        # take average
-        centers[k,:] = np.mean(Xk, axis = 0)
+        
+        # Nếu cụm không rỗng thì tính trung bình
+        if len(Xk) > 0:
+            centers[k,:] = np.mean(Xk, axis=0)
     return centers
 
-# Bước 7: Hàm kiểm tra tính hội tụ
 def kmeans_has_converged(centers, new_centers):
-    # return True if two sets of centers are the same
+    """
+    Kiểm tra hội tụ: So sánh tập hợp tâm cũ và tâm mới.
+    Nếu giống hệt nhau -> Thuật toán dừng.
+    """
     return (set([tuple(a) for a in centers]) == set([tuple(a) for a in new_centers]))
 
-# Bước 8: Hàm vẽ đồ thị để quan sát quá trình
-def kmeans_visualize(X, centers, labels, n_cluster, title):
-    plt.figure(figsize=(8, 6))
-    plt.xlabel('x') 
-    plt.ylabel('y') 
-    plt.title(title) 
+# ==========================================
+# PHẦN 3: CÁC HÀM HIỂN THỊ (VISUALIZATION)
+# ==========================================
+
+# Hàm 1: Vẽ các bước trung gian (1 biểu đồ)
+def kmeans_visualize_step(X, centers, labels, n_cluster, title):
+    fig = plt.figure(figsize=(10, 8))
+    plt.xlabel('x'); plt.ylabel('y')
+    plt.title(title)
     
-    # Danh sách màu hỗ trợ
-    plt_colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w'] 
+    base_colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
     
     for i in range(n_cluster):
-        data = X[labels == i] # lấy dữ liệu của cụm i
-        # Vẽ các điểm thuộc cụm i
-        plt.plot(data[:, 0], data[:, 1], plt_colors[i] + '^', markersize=4, label='cluster_' + str(i), alpha=0.5) 
-        # Vẽ tâm cụm i (dùng màu khác để nổi bật, offset index màu đi 4 đơn vị)
-        plt.plot(centers[i][0], centers[i][1], plt_colors[i + 4] + 'o', markersize=10, label='center_' + str(i)) 
+        color = base_colors[i % len(base_colors)]
+        data = X[labels == i]
+        # Vẽ điểm dữ liệu (tam giác)
+        plt.plot(data[:, 0], data[:, 1], color=color, marker='^', linestyle='', markersize=4, alpha=0.4)
+        # Vẽ tâm cụm (hình tròn to)
+        if centers is not None:
+            plt.plot(centers[i][0], centers[i][1], color=color, marker='o', markersize=15, markeredgecolor='black', markeredgewidth=2)
     
-    plt.legend() 
-    plt.show()
+    # Chuyển sang ảnh OpenCV và hiển thị
+    img_cv2 = fig_to_cv2_image(fig)
+    plt.close(fig) # Giải phóng RAM
+    
+    cv2.imshow('Mo phong K-Means', img_cv2)
+    print(f">> Bước hiện tại: {title}")
+    
+    # Đợi bấm phím
+    key = cv2.waitKey(0)
+    if key == ord('q'): sys.exit()
 
-# Bước 9: Toàn bộ thuật toán K-means
-def kmeans(init_centers, init_labels, X, n_cluster):
+# Hàm 2: Vẽ SO SÁNH TRƯỚC - SAU (2 biểu đồ cạnh nhau)
+def visualize_comparison(X, final_centers, final_labels, n_cluster, times):
+    # Tạo khung chứa 2 biểu đồ (1 hàng, 2 cột)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+    
+    # --- BIỂU ĐỒ 1: Dữ liệu thô (Bên trái) ---
+    ax1.set_title("DỮ LIỆU BAN ĐẦU (Input)")
+    ax1.set_xlabel('x'); ax1.set_ylabel('y')
+    # Vẽ màu xám (gray) để thể hiện chưa phân cụm
+    ax1.plot(X[:, 0], X[:, 1], color='gray', marker='^', linestyle='', markersize=4, alpha=0.5)
+
+    # --- BIỂU ĐỒ 2: Kết quả phân cụm (Bên phải) ---
+    ax2.set_title(f"KẾT QUẢ PHÂN CỤM (Hội tụ sau {times} bước)")
+    ax2.set_xlabel('x'); ax2.set_ylabel('y')
+    
+    base_colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
+    for i in range(n_cluster):
+        color = base_colors[i % len(base_colors)]
+        data = X[final_labels == i]
+        # Vẽ điểm
+        ax2.plot(data[:, 0], data[:, 1], color=color, marker='^', linestyle='', markersize=4, alpha=0.4)
+        # Vẽ tâm
+        ax2.plot(final_centers[i][0], final_centers[i][1], color=color, marker='o', markersize=15, markeredgecolor='black', markeredgewidth=2)
+
+    # Hiển thị
+    img_cv2 = fig_to_cv2_image(fig)
+    plt.close(fig)
+    
+    cv2.imshow('Mo phong K-Means', img_cv2)
+    print(f"\n>> Đã hiển thị bảng so sánh tổng kết. Bấm phím bất kỳ để kết thúc.")
+    cv2.waitKey(0)
+
+# ==========================================
+# PHẦN 4: LOGIC ĐIỀU KHIỂN CHÍNH
+# ==========================================
+def kmeans_run(X, n_cluster):
+    print("\n--- BẮT ĐẦU THUẬT TOÁN ---")
+    
+    # B1: Khởi tạo
+    init_centers = kmeans_init_centers(X, n_cluster)
+    init_labels = np.zeros(X.shape[0]) 
+    
+    # Vẽ bước 0
+    kmeans_visualize_step(X, init_centers, init_labels, n_cluster, 'Khoi tao: Random vi tri tam')
+
     centers = init_centers
     labels = init_labels
     times = 0
     
     while True:
-        # Bước tìm nhãn mới
+        # B2: Tìm nhãn mới (E-step)
         labels = kmeans_predict_labels(X, centers)
+        kmeans_visualize_step(X, centers, labels, n_cluster, f'Vong lap {times+1}: Gan nhan (Tim tam gan nhat)')
         
-        # Vẽ đồ thị sau khi gán nhãn
-        kmeans_visualize(X, centers, labels, n_cluster, 'Assigned label for data at time = ' + str(times + 1))
-        
-        # Bước cập nhật tâm cụm
+        # B3: Tính tâm mới (M-step)
         new_centers = kmeans_update_centers(X, labels, n_cluster)
         
-        # Kiểm tra hội tụ
+        # B4: Kiểm tra dừng
         if kmeans_has_converged(centers, new_centers):
+            # Nếu đã hội tụ, gọi hàm vẽ SO SÁNH TRƯỚC SAU
+            visualize_comparison(X, new_centers, labels, n_cluster, times+1)
             break
         
         centers = new_centers
-        
-        # Vẽ đồ thị sau khi cập nhật tâm
-        kmeans_visualize(X, centers, labels, n_cluster, 'Update center position at time = ' + str(times + 1))
+        kmeans_visualize_step(X, centers, labels, n_cluster, f'Vong lap {times+1}: Cap nhat lai vi tri tam')
         times += 1
-        
-    return (centers, labels, times)
+    
+    return times
 
-# Bước 10: Gọi hàm để thực thi
-print("Bắt đầu thuật toán K-Means...")
+# ==========================================
+# PHẦN 5: CHƯƠNG TRÌNH CHÍNH (MAIN)
+# ==========================================
+if __name__ == "__main__":
+    print("=== DEMO K-MEANS: SO SÁNH TRƯỚC VÀ SAU ===")
+    
+    # 1. Nhập liệu từ bàn phím
+    try:
+        n_cluster_input = int(input("1. Nhập số lượng cụm (k): "))
+        n_samples_input = int(input("2. Nhập tổng số điểm dữ liệu (N): "))
+    except ValueError:
+        print("Lỗi: Nhập sai định dạng số!"); sys.exit()
 
-# Khởi tạo
-init_centers = kmeans_init_centers(X, n_cluster)
-print("Tâm khởi tạo ban đầu:\n", init_centers) 
+    # 2. Sinh dữ liệu giả lập (Dummy Data Generation)
+    print(f">> Đang sinh dữ liệu ngẫu nhiên...")
+    true_centers = np.random.randint(0, 20, (n_cluster_input, 2)) # Tâm giả để sinh dữ liệu
+    cov = [[1.5, 0], [0, 1.5]] # Độ phân tán
+    
+    X_list = []
+    samples_per_cluster = n_samples_input // n_cluster_input
+    
+    # Tạo các đám mây điểm quanh tâm giả
+    for i in range(n_cluster_input):
+        data = np.random.multivariate_normal(true_centers[i], cov, samples_per_cluster)
+        X_list.append(data)
+    
+    # Xử lý phần dư (nếu chia không hết)
+    if n_samples_input % n_cluster_input != 0:
+        data = np.random.multivariate_normal(true_centers[-1], cov, n_samples_input % n_cluster_input)
+        X_list.append(data)
 
-init_labels = np.zeros(X.shape[0])
+    X = np.concatenate(X_list, axis=0) # Gộp thành 1 tập dữ liệu lớn
 
-# Vẽ trạng thái khởi tạo
-kmeans_visualize(X, init_centers, init_labels, n_cluster, 'Init centers in the first run. Assigned all data as cluster 0')
-
-# Chạy vòng lặp K-means
-centers, labels, times = kmeans(init_centers, init_labels, X, n_cluster)
-
-print('Done! Kmeans has converged after', times, 'times')
-print('Final centers:\n', centers)
+    # 3. Chạy thuật toán
+    kmeans_run(X, n_cluster_input)
+    
+    # 4. Kết thúc
+    cv2.destroyAllWindows()
+    print("Chương trình kết thúc thành công!")

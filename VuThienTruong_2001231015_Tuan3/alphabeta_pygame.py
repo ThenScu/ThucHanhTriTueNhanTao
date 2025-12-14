@@ -1,13 +1,3 @@
-"""
-Simple pygame UI for an n x n Tic-Tac-Toe / Gomoku style game.
-- Ask for n in the console, then open a pygame window with an n x n grid.
-- Two local players (X and O) place marks by clicking cells.
-- Winning length = n (so n in a row wins). No AI.
-
-Dependencies: pygame
-Run after installing pygame (e.g. pip install -r requirements.txt)
-"""
-
 import sys
 import pygame
 
