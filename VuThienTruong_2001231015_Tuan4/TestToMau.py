@@ -1,7 +1,7 @@
-import networkx as nx  # Thư viện chuyên dụng để tạo và xử lý đồ thị
-import matplotlib.pyplot as plt  # Thư viện để vẽ hình ảnh minh họa
-import sys  # Dùng để thoát chương trình hoặc xử lý hệ thống
-import random  # Dùng để sinh số ngẫu nhiên (cho chế độ tự động)
+import networkx as nx  
+import matplotlib.pyplot as plt  #
+import sys  
+import random  
 
 # ==========================================
 # 1. HÀM VẼ ĐỒ THỊ (Dùng chung cho cả lúc chưa tô và đã tô)
@@ -28,7 +28,6 @@ def ve_do_thi(G_matrix, node_labels, colors_mapping=None, title=""):
     # Thiết lập kích thước khung hình vẽ (Dài x Rộng)
     plt.figure(figsize=(10, 7))
     
-    # --- QUAN TRỌNG: CỐ ĐỊNH VỊ TRÍ ---
     # seed=42 giúp thuật toán sắp xếp vị trí các đỉnh luôn giống nhau ở mọi lần vẽ.
     # Điều này giúp hình "Trước" và "Sau" khi tô màu không bị nhảy vị trí lung tung.
     pos = nx.spring_layout(G_viz, seed=42) 
@@ -95,7 +94,7 @@ def thuat_toan_to_mau(G, node_names):
         
         # --- QUAN TRỌNG: CẬP NHẬT HÀNG XÓM ---
         # Sau khi đỉnh n chọn màu X, phải đi báo cho tất cả hàng xóm biết:
-        # "Tao chọn màu X rồi, tụi bây bỏ màu X ra khỏi danh sách nhé!"
+        # "Đỉnh n chọn màu X rồi, tụi bây bỏ X ra khỏi danh sách nhé!"
         idx = t_[n] # Lấy index của đỉnh n
         for neighbor_idx, linked in enumerate(G[idx]):
             if linked == 1: # Nếu có nối cạnh

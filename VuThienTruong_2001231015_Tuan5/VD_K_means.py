@@ -1,8 +1,8 @@
-import numpy as np  # Thư viện toán học, xử lý ma trận
-import matplotlib.pyplot as plt  # Thư viện vẽ biểu đồ
-from scipy.spatial.distance import cdist  # Hàm tính khoảng cách giữa các điểm (rất nhanh)
-import cv2  # OpenCV: Dùng để hiển thị ảnh và xử lý phím bấm
-import sys  # Dùng để tắt chương trình an toàn
+import numpy as np  
+import matplotlib.pyplot as plt 
+from scipy.spatial.distance import cdist  
+import cv2  
+import sys  
 
 # ==========================================
 # PHẦN 1: HÀM HỖ TRỢ XỬ LÝ ẢNH (KỸ THUẬT)
